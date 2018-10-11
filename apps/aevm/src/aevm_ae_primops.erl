@@ -52,7 +52,7 @@ call_(Value, Data, StateIn) ->
     Gas = aevm_eeevm_state:gas(StateIn),
     try
         PrimOp = get_primop(Data),
-        BaseCost = aec_governance:primop_base_gas_cost(PrimOp),
+        BaseCost = aec_governance:primop_base_gas(PrimOp),
         case BaseCost =< Gas of
             false ->
                 {error, ?AEVM_PRIMOP_ERR_REASON_OOG({base, PrimOp}, BaseCost, StateIn)};
@@ -189,7 +189,7 @@ oracle_call_register(_Value, Data, State) ->
                         {error, _} = Err                -> Err
                     end
                 end,
-            DynCost = state_gas_cost(oracle_registration, DeltaTTL),
+            DynCost = state_gas(oracle_registration, DeltaTTL),
             ?TEST_LOG("~s computed gas cost ~p from relative TTL ~p", [?FUNCTION_NAME, DynCost, DeltaTTL]),
             {ok, DynCost, fun() -> call_chain(Callback, State) end}
     end.
@@ -211,7 +211,7 @@ oracle_call_query(Value, Data, State) ->
                                 {error, _} = Err                -> Err
                             end
                         end,
-                    DynCost = state_gas_cost(oracle_query, DeltaQTTL),
+                    DynCost = state_gas(oracle_query, DeltaQTTL),
                     ?TEST_LOG("~s computed gas cost ~p from relative TTL ~p", [?FUNCTION_NAME, DynCost, DeltaQTTL]),
                     {ok, DynCost, fun() -> call_chain(Callback, State) end}
             end;
@@ -241,7 +241,7 @@ oracle_call_respond(_Value, Data, State) ->
                                 {error, _} = Err -> Err
                             end
                         end,
-                    DynCost = state_gas_cost(oracle_response, DeltaRTTL),
+                    DynCost = state_gas(oracle_response, DeltaRTTL),
                     ?TEST_LOG("~s computed gas cost ~p from relative TTL ~p", [?FUNCTION_NAME, DynCost, DeltaRTTL]),
                     {ok, DynCost, Callback2}
             end
@@ -254,7 +254,7 @@ oracle_call_extend(_Value, Data, State) ->
         {error, _} = Err -> Err;
         {ok, DeltaTTL = {delta, _}} ->
             Callback = fun(API, ChainState) -> API:oracle_extend(<<Oracle:256>>, to_sign(Sign0), TTL, ChainState) end,
-            DynCost = state_gas_cost(oracle_extension, DeltaTTL),
+            DynCost = state_gas(oracle_extension, DeltaTTL),
             ?TEST_LOG("~s computed gas cost ~p from relative TTL ~p", [?FUNCTION_NAME, DynCost, DeltaTTL]),
             {ok, DynCost, fun() -> cast_chain(Callback, State) end}
     end.
@@ -456,9 +456,9 @@ ttl_delta(CurrHeight, {block, H}) when
             {error, too_low_abs_ttl}
     end.
 
-state_gas_cost(Tag, {delta, TTL}) ->
-    aec_governance_utils:state_gas_cost(
-      aec_governance:state_gas_cost_per_block(Tag),
+state_gas(Tag, {delta, TTL}) ->
+    aec_governance_utils:state_gas(
+      aec_governance:state_gas_per_block(Tag),
       TTL).
 
 to_sign({W1, W2}) ->
