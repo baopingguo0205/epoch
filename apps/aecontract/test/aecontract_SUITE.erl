@@ -16,6 +16,7 @@
         , call_contract_error_value/1
         , call_contract_negative_insufficient_funds/1
         , call_contract_negative/1
+        , call_contract_upfront_amount/1
         , create_contract/1
         , create_contract_with_gas_price_zero/1
         , create_contract_init_error/1
@@ -116,7 +117,10 @@ groups() ->
                          , call_contract_error_value
                          , call_contract_negative_insufficient_funds
                          , call_contract_negative
+                         , {group, call_contract_upfront_charges}
                          ]}
+    , {call_contract_upfront_charges, [], [ call_contract_upfront_amount ]}
+
     , {state_tree, [sequence], [ state_tree ]}
     , {sophia,     [sequence], [ sophia_identity,
                                  sophia_state,
@@ -338,6 +342,19 @@ create_contract_(ContractCreateTxGasPrice) ->
 
     ok.
 
+sender_balance_in_create(CreateTxOpts) ->
+    state(aect_test_utils:new_state()),
+    Sender = call(fun new_account/2, [1000000]),
+    Opts = CreateTxOpts#{return_init_call_return_value => {true, _Type={tuple, [word]}}},
+    {_, {SenderBalInCt}} = call(fun create_contract/5, [Sender, upfront_charges, {}, Opts]),
+    SenderBalInCt.
+
+sender_balance_in_call(CallTxOpts) ->
+    state(aect_test_utils:new_state()),
+    Sender = call(fun new_account/2, [1000000]),
+    Ct = call(fun create_contract/4, [Sender, upfront_charges, {}]),
+    _SenderBalInCt = call(fun call_contract/7, [Sender, Ct, senderBalance, word, {}, CallTxOpts]).
+
 sign_and_apply_transaction(Tx, PrivKey, S1) ->
     sign_and_apply_transaction(Tx, PrivKey, S1, 1).
 
@@ -461,6 +478,13 @@ call_contract_(ContractCallTxGasPrice) ->
                  aec_accounts:balance(aect_test_utils:get_account(ContractKey, S4))),
 
     {ok, S4}.
+
+call_contract_upfront_amount(_Cfg) ->
+    F = fun(X) -> sender_balance_in_call(#{amount => X}) end,
+    V1 = 10,
+    V2 = 20,
+    ?assertEqual(F(V1) + V1 - V2, F(V2)),
+    ok.
 
 %% Check behaviour of contract call error - especially re value / amount.
 call_contract_error_value(_Cfg) ->
@@ -621,7 +645,7 @@ create_contract(Owner, Name, Args, Options, S) ->
                      , fee        => 1
                      , deposit    => 0
                      , amount     => 0
-                     , gas        => 10000 }, maps:without([height, return_gas_used], Options)), S),
+                     , gas        => 10000 }, maps:without([height, return_gas_used, return_init_call_return_value], Options)), S),
     Height   = maps:get(height, Options, 1),
     PrivKey  = aect_test_utils:priv_key(Owner, S),
     {ok, S1} = sign_and_apply_transaction(CreateTx, PrivKey, S, Height),
@@ -630,7 +654,14 @@ create_contract(Owner, Name, Args, Options, S) ->
     CallTree    = aect_test_utils:calls(S1),
     Call        = aect_call_state_tree:get_call(ContractKey, CallKey, CallTree),
     case maps:get(return_gas_used, Options, false) of
-        false -> {ContractKey, S1};
+        false ->
+            case maps:get(return_init_call_return_value, Options, false) of
+                false ->
+                    {ContractKey, S1};
+                {true, Type} ->
+                    {ok, Res} = aeso_data:from_binary(Type, aect_call:return_value(Call)),
+                    {{ContractKey, Res}, S1}
+            end;
         true  -> {{ContractKey, aect_call:gas_used(Call)}, S1}
     end.
 
