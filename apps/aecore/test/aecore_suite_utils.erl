@@ -397,7 +397,7 @@ file_missing(F) ->
     end.
 
 errors_in_logs(Nodes, Config) ->
-    [{N, Errs} || N <- Nodes, 
+    [{N, Errs} || N <- Nodes,
                   Errs <- check_errors_logs(N, Config)].
 
 check_errors_logs(Node, Config) ->
@@ -409,7 +409,7 @@ grep_error(FileName) ->
     {ok, Bin} = file:read_file(FileName),
     Entries = string:lexemes(Bin, [$\r,$\n]),
     [ Entry || Entry <- Entries,
-               string:find(Entry, "[error]") =/= nomatch ]. 
+               string:find(Entry, "[error]") =/= nomatch ].
 
 expected_logs() ->
     ["epoch.log", "epoch_mining.log", "epoch_sync.log",
@@ -651,11 +651,7 @@ default_config(N, Config) ->
             <<"beneficiary">> => aec_base58c:encode(account_pubkey, PubKey),
             <<"beneficiary_reward_delay">> => 2},
       <<"chain">> =>
-          #{<<"persist">> => true},
-      <<"websocket">> =>
-          #{<<"internal">> =>
-                #{<<"acceptors">> => 10}
-           }
+          #{<<"persist">> => true}
      }.
 
 epoch_config_dir(N, Config) ->
